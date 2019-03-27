@@ -1,6 +1,33 @@
 """ORM"""
 
+import sqlite3
 
+
+class SQLiteDB:
+    def __init__(self, db):
+        self.database = db
+        self.conn = sqlite3.connect(self.database)
+        self.cursor = self.conn.cursor()
+
+    def create_table(self, table_name, fields_dict):
+        table_fields = ', '.join([f'{field} {value_type}' for field, value_type in fields_dict.items()])
+        query = f'create table "{table_name}" ({table_fields})'
+        self.cursor.execute(query)
+
+    def insert(self, table_name, values_list):
+        values = ', '.join([f'"{value}"' for value in values_list])
+        query = f'insert into "{table_name}" values ({values})'
+        self.cursor.execute(query)
+        self.conn.commit()
+
+    def update(self):
+        pass
+
+    def delete(self):
+        pass
+
+
+# region Fields
 class Field:
     def __init__(self, f_type, required=True, default=None):
         self.f_type = f_type
@@ -23,6 +50,13 @@ class StrField(Field):
         super().__init__(str, required, default)
 
 
+class FloatField(Field):
+    def __init__(self, required=True, default=None):
+        super().__init__(float, required, default)
+
+
+# endregion
+
 class ModelMeta(type):
     def __new__(mcs, name, bases, namespace):
         if name == 'Model':
@@ -31,6 +65,8 @@ class ModelMeta(type):
         meta = namespace.get('Meta')
         if meta is None:
             raise ValueError('meta is none')
+        if not hasattr(meta, 'database'):
+            raise ValueError('database is empty')
         if not hasattr(meta, 'table_name'):
             raise ValueError('table_name is empty')
 
@@ -54,39 +90,63 @@ class Manage:
     def create(self):
         print(self.model_cls)
 
+    def update(self):
+        pass
+
+    def delete(self):
+        pass
+
+    def filter(self):
+        pass
+
 
 class Model(metaclass=ModelMeta):
     class Meta:
-        table_name = ''
+        database = None
+        table_name = None
 
     objects = Manage()
 
     # todo DoesNotExist
 
     def __init__(self, *args, **kwargs):
-        for field_name, field in self._fields.items():
-            value = field.validate(kwargs.get(field_name))
-            setattr(self, field_name, value)
+        for field, val in self._fields.items():
+            valid_val = val.validate(kwargs.get(field))
+            setattr(self, field, valid_val)
+
+    # todo: finish
+    @classmethod
+    def create_table(cls):
+        db = cls.Meta.database
+        table = cls.Meta.table_name
+        if db and table:
+            fields = {}
+            for field, val in cls._fields.items():
+                db.create_table(table, fields)
 
 
-class User(Model):
-    id = IntField()
-    name = StrField()
-
-    class Meta:
-        table_name = ''
+if __name__ == '__main__':
+    db_path = r'd:\Program Files\DB Browser for SQLite\databases\test.db'
+    db = SQLiteDB(db_path)
 
 
-class Man(User):
-    sex = StrField()
+    class User(Model):
+        id = IntField()
+        name = StrField()
+
+        class Meta:
+            database = db
+            table_name = 'User'
 
 
-user = User(id=1, name='keker')
-User.objects.create(id=1, name='name')
-User.objects.update(id=1)
-User.objects.delete(id=1)
+    User.create_table()
 
-User.objects.filter(id=2).filter(name='kek')
-
-user.name = '2'
-user.save()
+# user = User()
+# User.objects.create(id=1, name='name')
+# User.objects.update(id=1)
+# User.objects.delete(id=1)
+#
+# User.objects.filter(id=2).filter(name='kek')
+#
+# user.name = '2'
+# user.save()
