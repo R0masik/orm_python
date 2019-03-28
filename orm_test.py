@@ -10,7 +10,7 @@ class SQLiteDB:
         self.cursor = self.conn.cursor()
 
     def create_table(self, table_name, fields_dict):
-        table_fields = ', '.join([f'{field} {value_type}' for field, value_type in fields_dict.items()])
+        table_fields = ', '.join([f'"{field}" {value_type.get_db_type()}' for field, value_type in fields_dict.items()])
         query = f'create table "{table_name}" ({table_fields})'
         self.cursor.execute(query)
 
@@ -29,6 +29,12 @@ class SQLiteDB:
 
 # region Fields
 class Field:
+    db_type = {
+        int: 'integer',
+        str: 'text',
+        float: 'real'
+    }
+
     def __init__(self, f_type, required=True, default=None):
         self.f_type = f_type
         self.required = required
@@ -38,6 +44,9 @@ class Field:
         if value is None and self.required:
             return None
         return self.f_type(value)
+
+    def get_db_type(self):
+        return self.db_type[self.f_type]
 
 
 class IntField(Field):
@@ -114,15 +123,12 @@ class Model(metaclass=ModelMeta):
             valid_val = val.validate(kwargs.get(field))
             setattr(self, field, valid_val)
 
-    # todo: finish
     @classmethod
     def create_table(cls):
         db = cls.Meta.database
         table = cls.Meta.table_name
         if db and table:
-            fields = {}
-            for field, val in cls._fields.items():
-                db.create_table(table, fields)
+            db.create_table(table, cls._fields)
 
 
 if __name__ == '__main__':
